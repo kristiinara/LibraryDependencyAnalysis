@@ -7,6 +7,7 @@ folder="$(pwd)/$(date +%F)" #TODO: fix this --> we probably need to create direc
 force=false
 print_help=false
 max_page=-1
+per_page=1
 graphifypath="./GraphifyEvolution"
 
 POSITIONAL=()
@@ -38,6 +39,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    --per_page)
+      per_page="$2"
+      shift #
+      shift #
+      ;;
     -h|--help)
       print_help=true
       shift # past argument
@@ -66,6 +72,7 @@ if [ "$print_help" = true ]; then
  echo "-f / --folder    =  folder where json files are written, default = <current path>/<current date>/"
  echo "-h / --help      =  Print help"
  echo "-m / --max       =  maximum number of pages to go through"
+ echo "--per_page       =  results per page, default = 1"
  echo "--force          =  force json file overwrite"
  echo "--help           =  print help"
  echo "-g / --graphifypath = Path to GraphifyEvolution instance, default is ./GraphifyEvolution"
@@ -119,10 +126,10 @@ do
     echo "[*] Overriding file $file_name, --force is enabled"
   fi
   
-  echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=10"
+  echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
   echo "[*] Saving results to: $file_name"
   
-  http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=10" --output $file_name --silent)
+  http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page" --output $file_name --silent)
   echo "[*] Http result code: $http_code"
   
   if [ "$http_code" = "404" ]; then
