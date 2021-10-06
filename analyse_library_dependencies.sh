@@ -147,7 +147,16 @@ do
      offset=$((per_page*(page-1)))
   
     echo "[*] Querying projects, limit $limit, offset $offset"
-    psql -c "copy (select array_to_json(array_agg(stuff)) from ( select name, repourl as repository_url from projects where projects.platform = 'Carthage' limit $limit offset $offset ) stuff ) to '$file_name' ;"
+    psql -c "copy (select array_to_json(array_agg(stuff)) from ( select name, repourl as repository_url from projects where projects.platform = '$platform' order by id limit $limit offset $offset ) stuff ) to '$file_name' ;"
+    
+    echo "[*] Checking if result file is empty"
+    
+    if [ "$(grep '\\N' $file_name)" = "\N" ]; then
+      echo "[i] No projects found, exiting program";
+      exit
+    fi
+    
+    echo "[i] File not empty, continue analysis"
     
   else
     echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
