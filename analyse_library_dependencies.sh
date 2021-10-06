@@ -9,6 +9,7 @@ print_help=false
 max_page=-1
 per_page=1
 graphifypath="./GraphifyEvolution"
+offline=false
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -53,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -o|--offline)
+      offline=true
+      shift # past argument
+      ;;
  #   --default)
  #     DEFAULT=YES
  #     shift # past argument
@@ -72,6 +77,7 @@ if [ "$print_help" = true ]; then
  echo "-f / --folder    =  folder where json files are written, default = <current path>/<current date>/"
  echo "-h / --help      =  Print help"
  echo "-m / --max       =  maximum number of pages to go through"
+ echo "-o / --offline   =  use psql database instead of libraries.io to query projects"
  echo "--per_page       =  results per page, default = 1"
  echo "--force          =  force json file overwrite"
  echo "--help           =  print help"
@@ -89,6 +95,16 @@ else
   echo "[!] GraphifyEvolution not found on path $graphifypath"
   echo "[*] Exiting program."
   exit
+fi
+
+if [ $offline = true ]; then
+  echo "[*] Checking if postgresql is installed"
+  if [ $(command -v "$graphifypath") ]; then
+     echo "[i] Postgresql is installed."
+  else
+     echo "[!] Postgresql not found."
+     echo "[*] Exiting program."
+  fi
 fi
 
 echo "[i] Searching for libraries on platform: $platform"
@@ -126,15 +142,24 @@ do
     echo "[*] Overriding file $file_name, --force is enabled"
   fi
   
-  echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
-  echo "[*] Saving results to: $file_name"
+  if [ $offline = true ]; then
+     limit=$per_page
+     offset=$((per_page*(page-1)))
   
-  http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page" --output $file_name --silent)
-  echo "[*] Http result code: $http_code"
+    echo "[*] Querying projects, limit $limit, offset $offset"
+    psql -c "copy (select array_to_json(array_agg(stuff)) from ( select name, repourl as repository_url from projects where projects.platform = 'Carthage' limit $limit offset $offset ) stuff ) to '$file_name' ;"
+    
+  else
+    echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
+    echo "[*] Saving results to: $file_name"
   
-  if [ "$http_code" = "404" ]; then
-    echo "[*] Stopping program, page $page not found"
-    break
+    http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page" --output $file_name --silent)
+    echo "[i] Http result code: $http_code"
+  
+    if [ "$http_code" = "404" ]; then
+        echo "[*] Stopping program, page $page not found"
+        break
+    fi
   fi
   
   echo "[*] Running GraphifyEvolution"
