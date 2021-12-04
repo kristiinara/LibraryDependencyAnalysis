@@ -1,6 +1,6 @@
 #!/bin/sh
 
-platform="Carthage"
+platform="Carthage" # can be either Carthage or CocoaPods
 api_key=""
 folder="$(pwd)/$(date +%F)" #TODO: fix this --> we probably need to create directory first!
 #folder="$(pwd)"
@@ -10,6 +10,8 @@ max_page=-1
 per_page=1
 graphifypath="./GraphifyEvolution"
 offline=false
+podspecanalysis=false
+podspecpath="$graphifypath/ExternalAnalysers/Specs"
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -57,6 +59,11 @@ while [[ $# -gt 0 ]]; do
     -o|--offline)
       offline=true
       shift # past argument
+      ;;
+    --podspecpath)
+      podspecpath="$2"
+      shift # past argument
+      shift # past value
       ;;
  #   --default)
  #     DEFAULT=YES
@@ -126,7 +133,12 @@ do
     fi
   fi
   
-  file_name="$folder/libraries-$page.json"
+  file_extension=".json"
+  if [ $offline = false ] && [ "$platform" = "CocoaPods" ]; then
+     file_extension=".txt" # for CocoaPods output file is .txt and GraphfiySwift will handle this file instead of a .json file
+  fi
+  
+  file_name="$folder/libraries-$page.$file_extension"
     
   echo "[*] Fetching projects on page: $page"
   echo "[*] Checking if file $file_name already exists"
@@ -159,15 +171,36 @@ do
     echo "[i] File not empty, continue analysis"
     
   else
-    echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
-    echo "[*] Saving results to: $file_name"
+    if [ "$platform" = "Carthage" ]; then
+        echo "[*] Making request to: https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page"
+        echo "[*] Saving results to: $file_name"
   
-    http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page" --output $file_name --silent)
-    echo "[i] Http result code: $http_code"
+        http_code=$(curl --write-out "%{http_code}\n" "https://libraries.io/api/search?platforms=$platform&api_key=$api_key&page=$page&per_page=$per_page" --output $file_name --silent)
+        echo "[i] Http result code: $http_code"
   
-    if [ "$http_code" = "404" ]; then
-        echo "[*] Stopping program, page $page not found"
-        break
+        if [ "$http_code" = "404" ]; then
+            echo "[*] Stopping program, page $page not found"
+            break
+        fi
+    else
+        if ! [ -d  "$podspecpath/Specs" ]; then
+            git clone https://github.com/CocoaPods/Specs.git $podspecpath
+        fi
+        
+        git_repos_file_raw = "$podspecpath/git_repos_raw.txt"
+        git_repos_file = "$podspecpath/git_repos.txt"
+        final_repos_file = "$podspecpath/final_repos.txt"
+        
+        if ! [ -f "$final_repos_file" ]; then
+            grep -rhi "\"git\":" "$podspecpath/Specs" | sort | uniq > "$git_repos_file_raw"
+            cat "$git_repos_file_raw" | sed -e 's/"git": "//g' | sed -e 's/"//g'| sed -e 's/,//g' > "$git_repos_file"
+            grep -e 'github.com\|bitbucket.org' "$git_repos_file" > "$final_repos_file"
+        fi
+        
+       offset=$((per_page*(page-1)))
+       end=$((offset+per_page-1))
+       
+       sed -n "$offset,$end p" "$final_repos_file" > "$file_name"
     fi
   fi
   
