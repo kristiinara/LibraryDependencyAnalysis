@@ -202,6 +202,11 @@ do
        end=$((offset+per_page-1))
        
        sed -n "$offset,$end p" "$final_repos_file" > "$file_name"
+       
+       if [ "$(grep '\\N' $file_name)" = "\N" ] && [ $page -gt 1 ]; then
+            echo "[i] No projects found, exiting program";
+            exit
+       fi
     fi
   fi
   
