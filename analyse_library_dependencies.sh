@@ -53,6 +53,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -g|--graphifypath)
       graphifypath="$2"
+      podspecpath="$graphifypath/ExternalAnalysers/Specs" #TODO: add some kind of check that it should not be overwritten when podspecpath is set first!
       shift # past argument
       shift # past value
       ;;
@@ -138,7 +139,7 @@ do
      file_extension=".txt" # for CocoaPods output file is .txt and GraphfiySwift will handle this file instead of a .json file
   fi
   
-  file_name="$folder/libraries-$page.$file_extension"
+  file_name="$folder/libraries-$page$file_extension"
     
   echo "[*] Fetching projects on page: $page"
   echo "[*] Checking if file $file_name already exists"
@@ -187,9 +188,9 @@ do
             git clone https://github.com/CocoaPods/Specs.git $podspecpath
         fi
         
-        git_repos_file_raw = "$podspecpath/git_repos_raw.txt"
-        git_repos_file = "$podspecpath/git_repos.txt"
-        final_repos_file = "$podspecpath/final_repos.txt"
+        git_repos_file_raw="$podspecpath/git_repos_raw.txt"
+        git_repos_file="$podspecpath/git_repos.txt"
+        final_repos_file="$podspecpath/final_repos.txt"
         
         if ! [ -f "$final_repos_file" ]; then
             grep -rhi "\"git\":" "$podspecpath/Specs" | sort | uniq > "$git_repos_file_raw"
