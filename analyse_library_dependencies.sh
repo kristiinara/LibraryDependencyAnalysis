@@ -53,7 +53,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     -g|--graphifypath)
       graphifypath="$2"
-      podspecpath="$graphifypath/ExternalAnalysers/Specs" #TODO: add some kind of check that it should not be overwritten when podspecpath is set first!
       shift # past argument
       shift # past value
       ;;
