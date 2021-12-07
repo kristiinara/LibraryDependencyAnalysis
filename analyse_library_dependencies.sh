@@ -211,7 +211,7 @@ do
   
   echo "[*] Running GraphifyEvolution"
   
-  project_folder="$folder/libraries/$page/"
+  project_folder="$folder/libraries"
   echo "[*] Creating folder if it does not exist: $project_folder"
   echo "[i] Downloading projects into folder: $project_folder"
   
