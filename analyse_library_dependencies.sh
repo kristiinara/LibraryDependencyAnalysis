@@ -12,6 +12,7 @@ graphifypath="./GraphifyEvolution"
 offline=false
 podspecanalysis=false
 podspecpath="$graphifypath/ExternalAnalysers/Specs"
+onlytempfiles=false
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -53,13 +54,16 @@ while [[ $# -gt 0 ]]; do
       ;;
     -g|--graphifypath)
       graphifypath="$2"
-      podspecpath="$graphifypath/ExternalAnalysers/Specs" #TODO: add some kind of check that it should not be overwritten when podspecpath is set first!
       shift # past argument
       shift # past value
       ;;
     -o|--offline)
       offline=true
       shift # past argument
+      ;;
+    --temp)
+      onlytempfiles=true
+      shift  # past argument
       ;;
     --podspecpath)
       podspecpath="$2"
@@ -87,7 +91,9 @@ if [ "$print_help" = true ]; then
  echo "-m / --max       =  maximum number of pages to go through"
  echo "-o / --offline   =  use psql database instead of libraries.io to query projects"
  echo "--per_page       =  results per page, default = 1"
+ echo "--podspecpath    =  path to cocoapods Podspec repository, if the folder does not exist then script will clone podspec repo there"
  echo "--force          =  force json file overwrite"
+ echo "--temp           =  only store repos temporarily, remove them after they have been analysed"
  echo "--help           =  print help"
  echo "-g / --graphifypath = Path to GraphifyEvolution instance, default is ./GraphifyEvolution"
  exit
@@ -218,6 +224,11 @@ do
   
   # Usage: application analyse <path> [--app-key <app-key>] [--evolution] [--no-source-analysis] [--only-git-tags] [--bulk-json-path <bulk-json-path>] [--start-commit <start-commit>] [--language <language>] [--external-analysis <external-analysis> ...] [--dependency-manager <dependency-manager>]
   "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags
+  
+  if [ $temp = true ]; then
+    echo "[i] Deleting contents of analysed repositories in $project_folder"
+    rm -r "$project_folder/*"
+  fi
 done
 
 
