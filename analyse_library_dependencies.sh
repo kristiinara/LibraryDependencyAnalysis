@@ -111,7 +111,7 @@ else
   exit
 fi
 
-if [ $offline = true ]; then
+if [ "$offline" = true ]; then
   echo "[*] Checking if postgresql is installed"
   if [ $(command -v "$graphifypath") ]; then
      echo "[i] Postgresql is installed."
@@ -133,6 +133,7 @@ while [ true ]
 do
   page=$((page+1))
   
+  echo "[i] page $page, max_page $max_page"
   if [ $max_page -gt 0 ]; then
     if [ $page -gt $max_page ]; then
         echo "[*] Stopping program, maximum page count $max_page"
@@ -161,7 +162,7 @@ do
     echo "[*] Overriding file $file_name, --force is enabled"
   fi
   
-  if [ $offline = true ]; then
+  if [ "$offline" = true ]; then
      limit=$per_page
      offset=$((per_page*(page-1)))
   
@@ -218,16 +219,16 @@ do
   
   echo "[*] Running GraphifyEvolution"
   
-  project_folder="$folder/libraries"
+  project_folder="$folder/libraries/$page"
   echo "[*] Creating folder if it does not exist: $project_folder"
   echo "[i] Downloading projects into folder: $project_folder"
   
   # Usage: application analyse <path> [--app-key <app-key>] [--evolution] [--no-source-analysis] [--only-git-tags] [--bulk-json-path <bulk-json-path>] [--start-commit <start-commit>] [--language <language>] [--external-analysis <external-analysis> ...] [--dependency-manager <dependency-manager>]
   "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags
   
-  if [ $onlytempfiles = true ]; then
+  if [ "$onlytempfiles" = true ]; then
     echo "[i] Deleting contents of analysed repositories in $project_folder"
-    rm -r "$project_folder/*"
+    rm -rf "$project_folder"
   fi
 done
 
