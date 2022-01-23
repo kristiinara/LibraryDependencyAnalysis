@@ -13,6 +13,7 @@ offline=false
 podspecanalysis=false
 podspecpath="$graphifypath/ExternalAnalysers/Specs"
 onlytempfiles=false
+onlyexisting=false
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -69,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       podspecpath="$2"
       shift # past argument
       shift # past value
+      ;;
+    --onlyexisting)
+      onlyexisting=true
+      shift # past argument
       ;;
  #   --default)
  #     DEFAULT=YES
@@ -150,6 +155,20 @@ do
     
   echo "[*] Fetching projects on page: $page"
   echo "[*] Checking if file $file_name already exists"
+  
+  if [ "$onlyexisting" = true ]; then
+      if [ -f "$file_name" ]; then
+            echo "[*] Running GraphifyEvolution"
+  
+            project_folder="$folder/libraries/$page"
+            echo "[*] Creating folder if it does not exist: $project_folder"
+            echo "[i] Downloading projects into folder: $project_folder"
+      
+          "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags
+          continue
+      fi
+      exit
+  fi
 
   if [ -f "$file_name" ]; then
     echo "[i] File $file_name already exists"
