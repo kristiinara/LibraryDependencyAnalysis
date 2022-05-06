@@ -164,7 +164,7 @@ do
             echo "[*] Creating folder if it does not exist: $project_folder"
             echo "[i] Downloading projects into folder: $project_folder"
       
-          "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags
+          "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags --check-if-project-existis
           continue
       fi
       exit
@@ -243,7 +243,7 @@ do
   echo "[i] Downloading projects into folder: $project_folder"
   
   # Usage: application analyse <path> [--app-key <app-key>] [--evolution] [--no-source-analysis] [--only-git-tags] [--bulk-json-path <bulk-json-path>] [--start-commit <start-commit>] [--language <language>] [--external-analysis <external-analysis> ...] [--dependency-manager <dependency-manager>]
-  "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags
+  "$graphifypath" analyse "$project_folder" --evolution --bulk-json-path "$file_name" --no-source-analysis --external-analysis dependencies --only-git-tags --check-if-project-existis
   
   if [ "$onlytempfiles" = true ]; then
     echo "[i] Deleting contents of analysed repositories in $project_folder"
