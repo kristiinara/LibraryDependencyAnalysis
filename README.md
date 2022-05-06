@@ -95,4 +95,21 @@ The following relationships have properties:
 
 - "type": String (either carthage, cocoapods or swiftpm, depending on through which package manager the dependency was integrated)
 
+# Reading libraries.io data into postgres
 
+One option of how the LibraryDependencyAnalysis script queries library names from a psql database. The projects table from librari.io can be red into postgres by first creating a talble with correct columns and then reading in the corresponding .csv file. 
+
+The projects table can be created with the following query: 
+
+    CREATE TABLE projects 
+        (id INTEGER, platform VARCHAR(255), name VARCHAR(255), created DATE, 
+            updated DATE, description TEXT, keywords TEXT, homepage VARCHAR(255), 
+            licenses VARCHAR(255), repourl VARCHAR, versioncount INTEGER, 
+            sourcerank INTEGER, latestrelease DATE, latestreleasenumber VARCHAR(255), 
+            packagemanagerid INTEGER, dependentprojectscount INTEGER, 
+            language VARCHAR(255), status VARCHAR(255), lastsyncted DATE, 
+            dependentrepositoriescount INTEGER, repositoryid INTEGER);
+            
+The data from the .csv file (downlaoded from https://libraries.io/data) can then be red in as follows: 
+     
+     COPY projects FROM '<path>/libraries-1.6.0-2020-01-12/projects-1.6.0-2020-01-12.csv' DELIMITER ',' CSV HEADER;
