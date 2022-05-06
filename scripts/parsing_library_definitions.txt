@@ -1,0 +1,678 @@
+Parsing LibraryDefinition
+
+Translation table: 
+- carthage: 
+    - ~> version -> same
+    - == version -> same
+    - >= version -> same
+    - branch -> == + name
+    - version -> == + name
+    - "" == latest
+- swiftpm:
+    - .exact(version)) -> ==
+    - .upToNextMajor(from: version)) -> ~> (+ splitting and taking first two)
+    - .upToNextMinor(from: version)) -> ~> (+ splitting and taking first 3)
+    - .branch(branch_name)) -> == 
+    - .revision(commit)) -> == 
+    - version ..< version2  -> same (others don't have it)
+        - do not necessarily have spaces
+    - branch( --> ==
+    - version) -->  this is the minimum version!!! -> >=
+        - or version)))
+        - a lot of them seem to use this version
+- cocoapods: 
+    - :branch => branch_name -> ==
+    - :tag => tag_name  -> ==
+    - = version -> ==
+    - > version -> same
+    - >= version -> same
+    - < version -> same
+    - <= version -> same
+    - ~> 1.2.3 (equivalent to >= 1.2.3 and < 1.3 -> same
+
+CLEANING + PARSING:
+Carthage: 
+- carthage + ~>, remove whitespace:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version contains "~>" and notl.version starts with "~>" set l.version = trim(l.version)
+    - updated 48 nodes
+    - 11 incorrect records remained, which we cannot parse correctly --> set l.canparse = false match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version contains "~>" and notl.version starts with "~>" set l.canparse = false
+- carthage parse ~> 
+    - without space:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with "~>" and notl.version starts with "~> " set l.parsed_version = replace(l.version, "~>", ""), l.requirement = "~>", l.parsed = true
+        - set 171
+    - with space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with "~> " setl.parsed_version = replace(l.version, "~> ", ""), l.requirement = "~>", l.parsed = true
+        - set 180294 properties
+    - setting parsed = false for the ones that failed: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version contains "~>" andl.parsed is null set l.parsed = false
+- carthage + == -> remove whitespace match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version contains "==" setl.version = trim(l.version)
+    - updated 8082 properties
+    - 2 incorrect records remained (6+8 instances)
+    - setting to not aprsable:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and not l.version starts with "==" andl.version contains "==" set l.canparse = false, l.parsed = false
+        - 28 updated properties
+- carthage parse ==
+    - without space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with "==" and notl.version starts with "== " set l.parsed_version = replace(l.version, "==", ""), l.requirement = "==", l.parsed = true,l.canparse = true
+        - set 76 properties
+    - with space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with "== " setl.parsed_version = replace(l.version, "== ", ""), l.requirement = "==", l.parsed = true, l.canparse = true
+        - set 32196 properties
+- carthage trim for all: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with " " setl.version = trim(l.version)
+    - set 160 properties
+- carthage parse >= 
+    - check for if contain, but do not start match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and not l.version starts with ">=" andl.version contains ">=" return l.version
+        - --> none
+    - without space match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and not l.version starts with ">= " andl.version starts with ">="  set l.parsed_version = replace(l.version, ">=", ""), l.requirement = ">=", l.parsed =true,l.canparse = true
+        - set 16 properties
+    - with space match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.version starts with ">= " setl.parsed_version = replace(l.version, ">= ", ""), l.requirement = ">=", l.parsed = true,l.canparse = true
+        - set 9228 properties
+- carthage parse version and branch match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and size(l.version) > 0 and l.parsed isnull set l.parsed_version = l.version, l.requirement = "==", l.parsed =true, l.canparse = true, l.potentialbranch = true
+    - set 79595 properties
+- carthage parse empty
+    - check if all are empty: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.parsed is null return l.version,count(*)
+        - yes
+    - parse match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.parsed is null setl.parsed_version = l.version, l.requirement = "latest", l.parsed =true, l.canparse = true
+        - set 69308 properties
+- checked, all parsed! match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "carthage" and l.parsed is null return l.version,count(*)
+
+Cocoapods: 
+- parse >= match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ">=" set l.parsed_version = replace(l.version, ">=", ""), l.requirement = ">=", l.parsed =true,l.canparse = true
+    - set 68 properties
+- parse > match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ">" return l.version
+    - none found
+- parse <= match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "<= " set l.parsed_version = replace(l.version, "<= ", ""), l.requirement = "<=", l.parsed =true,l.canparse = true
+    - set 4 properties (1 instance)
+- parse < match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "< " set l.parsed_version = replace(l.version, "< ", ""), l.requirement = "<", l.parsed =true,l.canparse =true
+    - set 244 properties
+- parse ~> match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "~> " set l.parsed_version = replace(l.version, "~> ", ""), l.requirement = "~>", l.parsed =true,l.canparse =true
+    - set 104 properties
+- parse =  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "=" return l.version
+    - none found
+- parse empty match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version ="" set l.parsed_version = l.version, l.requirement = "latest", l.parsed =true, l.canparse = true
+    - set 892600 properties
+- parse branch:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "branch: " set l.parsed_version = replace(l.version, "branch: ", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+    - set 462 properties
+- parse :branch =>
+    - with space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ":branch => " set l.parsed_version = replace(l.version, ":branch => ", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 9762 properties
+    - no spaces: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ":branch=>" set l.parsed_version = replace(l.version, ":branch=>", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 204 properties
+    - two spaces: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ":branch => " set l.parsed_version = replace(l.version, ":branch => ", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 132 properties
+    - check match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "branch" return l.version
+        - none left containing branch
+- parse tag: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "tag: " set l.parsed_version = replace(l.version, "tag: ", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+    - set 364 properties
+- parse :tag match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ":tag => " set l.parsed_version = replace(l.version, ":tag => ", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+    - set 4376 properties
+- check: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null return l.version
+    - still 736 records left
+- parse commit: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with "commit: " set l.parsed_version = replace(l.version, "commit: ", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+    - set 20 properties
+- parse :commit match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version starts with ":commit => " set l.parsed_version = replace(l.version, ":commit => ", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+    - set 2520 properties
+- parse inhibit_warnings match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "inhibit_warnings" set l.parsed_version = "", l.requirement = "latest", l.parsed =true, l.canparse = true
+    - set 180 properteis
+- parse !=  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "!= " set l.parsed_version = replace(l.version, "!= ", ""), l.requirement = "!=", l.parsed =true,l.canparse =true
+    - set 40 properties
+- parse git: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "git:" set l.parsed_version = "", l.requirement = "latest", l.parsed =true, l.canparse = true
+- parse testspecs:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "testspecs:" set l.parsed_version = "", l.requirement = "latest", l.parsed =true, l.canparse = true
+    - set 16 properties
+- other git match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null and l.version contains "git" set l.parsed_version = "", l.requirement = "latest", l.parsed =true, l.canparse = true
+    - set 4 properties (1 instance)
+- treat others as tags match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null setl.parsed_version = l.version, l.requirement = "==", l.parsed =true,l.canparse =true
+    - set 12 properties
+- check if any more left match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" and l.parsed is null return l.version
+    - --> none
+
+swiftpm:
+- change swiftPM to swiftpm (to match Library relationship type) match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftPM" set r.type = "swiftpm"
+    - set 52502 properties
+- cleanup:
+    - remove ) from version match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null set l.version =replace(l.version, ")", "")
+        - set 52248 properties
+- parse .exact(
+    - with space match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith ".exact( " set l.parsed_version = replace(l.version, ".exact( ", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+        - set 16 properties
+    - without space match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith ".exact(" set l.parsed_version = replace(l.version, ".exact(", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+        - set 10400 properties
+        - can sometimes contain a variable name 
+    - with explicit call match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "Package.Dependency.Requirement.exact(" set l.parsed_version = replace(l.version,"Package.Dependency.Requirement.exact(", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+        - set 32 properties
+    - with weird call: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "._exactItem(" set l.parsed_version = replace(l.version,"._exactItem(", ""), l.requirement = "==", l.parsed =true,l.canparse =true
+        - set 196 properties
+    - checking: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains  "exact" return l.version
+        - no more left
+- parse upToNextMajor
+    - find instances that cannot be parsed match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMajor(from: " and not l.version ends with "0" with replace(l.version, ".upToNextMajor(from: ", "") asparsed_version, l with split(parsed_version, ".") as parts, l where size(parts) < 2 set l.canparse = false, l.parsed = false
+        - set 104 properties
+    - where size = 2 set as ~>  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMajor(from: " and not l.version ends with "0" with replace(l.version, ".upToNextMajor(from: ", "") asparsed_version, l with split(parsed_version, ".") as parts, l where size(parts) = 2  set l.parsed_version = replace(l.version,".upToNextMajor(from: ", ""), l.requirement = "~>", l.parsed =true,l.canparse =true
+        - set 4 properties
+    - where size > 2 match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version starts with  ".upToNextMajor(from: "  with replace(l.version, ".upToNextMajor(from: ", "") as parsed_version, l with replace(parsed_version, "(", "") as parsed_version, l  with split(parsed_version, ".") as parts, l, parsed_version where size(parts) > 2 set l.parsed_version_exact = replace(parsed_version, " // dev", ""), l.parsed_version = parts[0] + "." +parts[1], l.parsed =true,l.canparse =true, l.requirement = "~>"
+        - set 37020 versions
+    - where = 2 again (withouth end not 0) match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMajor(from: "  with replace(l.version, ".upToNextMajor(from: ", "") as parsed_version, l with split(parsed_version, ".") as parts, l where size(parts) = 2  set l.parsed_version = replace(l.version,".upToNextMajor(from: ", ""), l.requirement = "~>", l.parsed =true,l.canparse =true
+        - set 60 properties
+    - checking:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMajor(from: "  return l.version
+        - none left
+    - without space:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMajor(from:"  with replace(l.version, ".upToNextMajor(from:", "") as parsed_version, l withreplace(parsed_version, "(", "") as parsed_version, l  with split(parsed_version, ".") as parts, l, parsed_version wheresize(parts) > 2 set l.parsed_version_exact = replace(parsed_version, " // dev", ""), l.parsed_version = parts[0] + "."+parts[1], l.parsed =true,l.canparse =true, l.requirement = "~>"
+        - set 225 properties
+    - check all match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains  "upToNextMajor"  return l.version
+        - still some left with Package.Dependency.Requirement.upToNextMajor
+    - handle Package.Dependency.Requirement.upToNextMajor match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "Package.Dependency.Requirement.upToNextMajor(from: "  with replace(l.version,"Package.Dependency.Requirement.upToNextMajor(from: ", "") as parsed_version, l with replace(parsed_version, "(", "")as parsed_version, l  with split(parsed_version, ".") as parts, l, parsed_version where size(parts) > 2 setl.parsed_version_exact = replace(parsed_version, " // dev", ""), l.parsed_version = parts[0] + "." +parts[1], l.parsed =true,l.canparse =true, l.requirement = "~>"
+        - set 120 properties
+    - checked, all handled
+- handle upToNextMinor
+    - with space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".upToNextMinor(from: " set l.parsed_version = replace(l.version, ".upToNextMinor(from: ", ""), l.requirement ="~>", l.parsed = true, l.canparse =true
+        - set 12604 properties
+    - without space: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version starts with  ".upToNextMinor(from:" set l.parsed_version = replace(l.version, ".upToNextMinor(from:", ""), l.requirement ="~>", l.parsed = true, l.canparse =true
+        - set 152 properties
+    - Package.Dependency.Requirement.upToNextMinor match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "Package.Dependency.Requirement.upToNextMinor(from: " set l.parsed_version = replace(l.version,"Package.Dependency.Requirement.upToNextMinor(from: ", ""), l.requirement ="~>", l.parsed = true, l.canparse =true
+        - set 32 properties
+    - checking match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains  "upToNextMinor"  return l.version
+        - none left
+- handle branch
+    - handle .branch( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".branch(" set l.parsed_version = replace(l.version, ".branch(", ""), l.requirement = "==", l.parsed =true,l.canparse =true, l.potentialbranch = true, l.branch=true
+        - set 6384 properties
+    - handle . branch( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ". branch(" set l.parsed_version = replace(l.version, ". branch(", ""), l.requirement = "==", l.parsed =true,l.canparse =true, l.potentialbranch = true, l.branch=true
+        - set 6 properties
+    - handle .branch ( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".branch (" set l.parsed_version = replace(l.version, ".branch (", ""), l.requirement = "==", l.parsed =true,l.canparse =true, l.potentialbranch = true, l.branch=true
+        - set 6 properties
+    - handle Package.Dependency.Requirement.branch( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "Package.Dependency.Requirement.branch(" set l.parsed_version = replace(l.version,"Package.Dependency.Requirement.branch(", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 42 properties
+    - handle .branchItem( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".branchItem(" set l.parsed_version = replace(l.version, ".branchItem(", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 24 properties
+    - handle ._branchItem( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "._branchItem(" set l.parsed_version = replace(l.version, "._branchItem(", ""), l.requirement = "==", l.parsed =true,l.canparse = true, l.potentialbranch = true, l.branch=true
+        - set 6 properties
+    - handle branch:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  "branch: " set l.parsed_version = replace(l.version, "branch: ", ""), l.requirement = "==", l.parsed =true,l.canparse =true, l.potentialbranch = true, l.branch=true
+        - set 24 properties
+    - checking match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains  "branch"  return l.version
+        - none left
+- handle revision
+    - handle .revision( match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version startswith  ".revision(" set l.parsed_version = replace(l.version, ".revision(", ""), l.requirement = "==", l.parsed =true,l.canparse = true
+        - set 604 properties
+    - check:  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains  "revision"  return l.version
+        - none left
+- hanlde ..< match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version contains "..<" with split(l.version, "..<") as versions, l with replace(trim(versions[0]), "Version(", "") as version0,replace(trim(versions[1]), "Version(", "")  as version1, l set l.parsed_version = version0, l.upper_bound = version1,l.requirement = "..<", l.parsed =true,l.canparse = true
+    - set 4555 properties
+- handle else: 
+    - weird values: 
+        - "prereleaseIdentifiers: [-beta.1]"
+        - "majorVersion: 3"
+        - "prereleaseIdentifiers: [-rc.2]"
+        - starts with //
+    - handle versions with at least 2 values when split by . match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null with split(l.version,".") as parts, l,r where size(parts) > 1 set l.parsed_version = l.version, l.requirement = ">=", l.parsed =true,l.canparse =true
+    - what is still left? match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null  return l.version,count(*)
+    - set specific value as not parsable: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version ="mapboxCommonVersion" set l.parsed =false,l.canparse =false
+        - set 14 properties
+    - for version 0 match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version = "0"set l.parsed_version = "", l.requirement = "latest", l.parsed =true,l.canparse =true
+        - set 420 properties
+    - for empty match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version = ""set l.parsed_version = "", l.requirement = "latest", l.parsed =true,l.canparse =true
+        - set 1408 properties
+    - for // dev match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version = "// dev" set l.parsed_version = "", l.requirement = "latest", l.parsed =true,l.canparse =true
+        - set 320 properties
+    - for 2 match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null and l.version = "2"set l.parsed_version = "2.0.0", l.requirement = ">=", l.parsed =true,l.canparse =true
+        - set 32 properties
+        - SAME for 3, 5, 1
+    - how many left?  match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null  return l.version
+        - ignore: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "swiftpm" and l.parsed is null set l.parsed =false,l.canparse = false
+        - set 58 properties
+- check: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where l.parsed is null return l.version
+    - none left 
+- fix: match (l:LibraryDefinition) where l.parsed_version contains "prereleaseIdentifiers" set l.parsed_version = "",l.requirement = "latest"
+    - set 14 properties
+- fix containing ] match (l:LibraryDefinition) where l.parsed_version contains "]" set l.parsed_version = trim(replace(l.parsed_version, "]",""))
+    - set 19 properteis
+- fix Version( in version match (l:LibraryDefinition) where l.parsed_version contains "(" set l.parsed_version = replace(l.parsed_version,"Version(", "")
+    - set 6 properties
+- containing #  match (l:LibraryDefinition) where l.parsed_version contains " #" set l.parsed_version = split(l.parsed_version, " #")[0]
+    - set 37 properties match (l:LibraryDefinition) where l.parsed_version contains "#" set l.parsed_version = split(l.parsed_version, "#")[0]
+        - set 14 properties
+- containing //
+    - and nothing else: match (l:LibraryDefinition) where l.parsed_version contains "// See" set l.parsed_version = "", l.requirement = "latest"
+        - updated 2 properties
+    - something else match (l:LibraryDefinition) where l.parsed_version contains "//"  set l.parsed_version = split(l.parsed_version, " //")[0]
+        - updated 1 property
+- containing } match (l:LibraryDefinition) where l.parsed_version contains "}" set l.parsed_version = replace(l.parsed_version, " }", "")
+    - set 5 properties
+- containing space
+    - trimmed version match (l:LibraryDefinition) where l.parsed_version contains " " set l.parsed_version = trim(l.parsed_version)
+        - set 82 properties
+    - containing =  match (l:LibraryDefinition) where l.parsed_version contains " " set l.parsed_version = replace( l.parsed_version, "= ", "")
+        - set 5 properties
+    - others:  match (l:LibraryDefinition) where l.parsed_version contains " " set l.requirement = null, l.parsed_version = 0, l.parsed =false,l.canparse = false
+        - 8 properties set
+    - containing : match (l:LibraryDefinition) where l.parsed_version contains ":" set l.parsed_version = replace(l.parsed_version, ":", "")
+        - set 1 property
+    - containing " match (l:LibraryDefinition) where l.parsed_version contains "\"" set l.parsed_version = replace(l.parsed_version, "\"", "")
+        - set 50 properties
+    - 
+- checked for other types of special characters, nothing else found
+
+
+
+Summary:
+
+Query: match (:App)-[r:DEPENDS_ON]->(l:LibraryDefinition) where r.type = "cocoapods" with l.requirement as requirement,count(distinct r) as requirement_count return requirement, requirement_count order by requirement_count desc
+
+Coocapods: 
+- latest: 223238
+- == 3583
+- others less than 100
+
+swiftpm:
+- >= 36118
+- ~> 10686
+- == 3894
+- ..< 911
+- latest 805
+- others less than 100
+
+carthage:
+- ~> 60155
+- == 23974
+- latest 17327
+- >= 2311
+
+
+Added Relationship: 
+- MATCHES
+- also: NAME_MATCHES
+
+when connecting App-Library then query App-LibraryDef-Library-App2 where App2.timestamp < App.timestamp and App2.timestamp largest --> this should match for all potential values
+when connecting through NAME_MATCHES then same, but just finding the most up to date version
+
+Merging this
+- == match (ld:LibraryDefinition), (l:Library) where ld.requirement = "==" and l.name = ld.name and l.version =ld.parsed_version set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+    - matched 4359 library definitions
+    - ??? why so many?? see less in match (ld:LibraryDefinition) return ld.requirement, ld.matched, count(*)
+    - only 2446
+    - some libraries were double --> merged
+- after done: 
+    - 1735 not matched
+    - 2336 matched
+- check the not matched ones
+    - do again with versions that start with v
+- match also the ones with v match (ld:LibraryDefinition), (l:Library) where ld.requirement = "==" and l.name = ld.name and l.version ="v" +ld.parsed_version set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+- 276 rels created
+- after done: 
+    - 1538 not matched
+    - 2533 matched
+- check for missing versions: match (ld:LibraryDefinition), (l:Library) where ld.matched is null and ld.requirement = "==" and l.name = ld.name returnld.parsed_version, collect(l.version)
+- som have weird quotation marks, fixed that
+- sometimes ld.version has 2 elements and l.version 3 --> add 0 and match again match (ld:LibraryDefinition), (l:Library) where ld.requirement = "==" and ld.matched is null and l.name = ld.name andl.version =ld.parsed_version+".0" set ld.matched = true create (ld)-[r:MATCHES]->(l) return l.version, ld.parsed_version
+    - --> created 4 rels
+- after done:
+    - 1524 not matched
+    - 2547 matched
+- add name matches: match (ld:LibraryDefinition), (l:Library) where ld.requirement = "==" and ld.matched is null and l.name = ld.name setld.matched = false, ld.name_matches = true create (ld)-[r:NAME_MATCHES]->(l) return l.version, ld.parsed_version
+    - 65348 matches (so many??)
+- also set: match (ld:LibraryDefinition) where ld.requirement = "==" and ld.matched is null and ld.name_matches is null setld.matched = false, ld.name_matches = false
+- after done: 
+    - 2547 matched
+    - 747 only name matched (these are the ones we could not figure out)
+    - 777 none matched
+
+- next: Latest
+    - figure out how to match times (take time of app commit and find last version of library with that version
+    - can match if library has IS rel and can match 
+    - --> match all match (ld:LibraryDefinition), (l:Library) where ld.requirement = "latest" and ld.name = l.name set ld.matched = truecreate (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - created 34910 relationships
+    - --> 4418 remained, of which only 108 have / in name
+
+- next: !=
+    - none are matching match (ld:LibraryDefinition) where ld.requirement = "!=" set ld.matched = false, ld.name_matches = false
+        - set 4 properties
+
+- next <=
+    - match version and then all versions that come before
+    - none match match (ld:LibraryDefinition) where ld.requirement = "<="  set ld.matched = false, ld.name_matches = false
+        - set 2 properties
+- next <
+    - name matches, but no app versions or just versions match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and ld.name = l.name set ld.matched = false,ld.name_matches = true create (ld)-[r:NAME_MATCHES]->(l) return l.version, ld.parsed_version
+    - --> maybe we should redo this!! with comparisons!
+    - find all if ld version has 1 part: match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and ld.name = l.name with split(ld.parsed_version,".") as ldversion, ld, split(l.version, ".") as lversion where size(ldversion) = 1 and size(lversion) >= 1 andtoInteger(ldversion[0]) < toInteger(lversion[0])  return ld.name, ldversion, lversion --> wrong order, but there were none anyway
+    - --> none
+    - find all if ld version has 2 parts: match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and ld.name = l.name with split(ld.parsed_version,".") as ldversion, ld, split(l.version, ".") as lversion where size(ldversion) = 2 and size(lversion) >= 2 andtoInteger(lversion[0]) < toInteger(ldversion[0]) or (toInteger(lversion[0]) = toInteger(ldversion[0]) andtoInteger(lversion[1]) < toInteger(ldversion[1]) )  return ld.name, ldversion, lversion
+    - --> found 27
+    - create relationship match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and ld.name = l.name withsplit(ld.parsed_version,".") as ldversion, ld, split(l.version, ".") as lversion where size(ldversion) = 2 and size(lversion) >=2 and toInteger(lversion[0]) < toInteger(ldversion[0]) or (toInteger(lversion[0]) = toInteger(ldversion[0]) andtoInteger(lversion[1]) < toInteger(ldversion[1]) )  set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinctr)
+        - 27 relationships created
+    - find all if ld version has 3 parts:  match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and ld.name = l.name with split(ld.parsed_version,".") as ldversion, ld, split(l.version, ".") as lversion where size(ldversion) = 3 and size(lversion) >= 3 andtoInteger(lversion[0]) < toInteger(ldversion[0]) or (toInteger(lversion[0]) = toInteger(ldversion[0]) andtoInteger(lversion[1]) < toInteger(ldversion[1]) ) or (toInteger(lversion[0]) = toInteger(ldversion[0]) andtoInteger(lversion[1]) = toInteger(ldversion[1]) and toInteger(lversion[2]) < toInteger(ldversion[2])) return ld.name,ldversion, lversion
+    - --> none
+    - remove name_matches relationships:  match (ld:LibraryDefinition) where ld.requirement = "<" and ld.matched = true and ld.name_matches = true match (ld)-[r:NAME_MATCHES]->(l:Library) delete r
+        - removed 34
+    - set matched to false for others match (ld:LibraryDefinition) where ld.requirement = "<" and ld.matched is null set ld.matched = false, ld.name_matches = false
+        - set 10 properties
+
+- next >=
+    - if ld version has 1 part match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with [ ver insplit(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(l.version, ".") | toInteger(ver)] as lversion, l where size(ldversion) = 1 and size(lversion) >= 1 and ldversion[0] < lversion[0]  return ld.name, ldversion, lversion
+    - --> none
+    - if ld version has 2 parts match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with [ ver insplit(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(l.version, ".") | toInteger(ver)] as lversion, l where size(ldversion) = 2 and size(lversion) >= 2 and (lversion[0] > ldversion[0] or (lversion[0] = ldversion[0] andlversion[1] >= ldversion[1] ))  return ld.name, ldversion, lversion
+    - --> 2128 records
+    - set match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with [ ver insplit(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(l.version, ".") | toInteger(ver)] as lversion, l where size(ldversion) = 2 and size(lversion) >= 2 and (lversion[0] > ldversion[0] or (lversion[0] = ldversion[0] andlversion[1] >= ldversion[1] )) set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - added 2128 relationships
+    - if ld version has 3 parts match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with [ ver insplit(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(l.version, ".") | toInteger(ver)] as lversion, l where size(ldversion) = 3 and size(lversion) >= 3 and (lversion[0] > ldversion[0] or (lversion[0] = ldversion[0] andlversion[1] > ldversion[1] ) or (lversion[0] = ldversion[0] and lversion[1] = ldversion[1] and lversion[2] >= ldversion[2]) )return ld.name, ldversion, lversion
+    - --> 40646 records
+    - set match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with [ ver insplit(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(l.version, ".") | toInteger(ver)] as lversion, l where size(ldversion) = 3 and size(lversion) >= 3 and (lversion[0] > ldversion[0] or (lversion[0] = ldversion[0] andlversion[1] > ldversion[1] ) or (lversion[0] = ldversion[0] and lversion[1] = ldversion[1] and lversion[2] >= ldversion[2]) )set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - added 40646 relationships
+    - same for when l.version contains v
+        - for 1  part match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and ld.matched is null  with [ver in split(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(replace(l.version, "v", ""), ".") |toInteger(ver)] as lversion, l where size(ldversion) = 1 and size(lversion) >= 1 and ldversion[0] < lversion[0]  returnld.name, ldversion, lversion
+        - --> no matches
+        - for 2 parts match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and ld.matched is null with [ver in split(ld.parsed_version,".") | toInteger(ver)] as ldversion, ld, [ ver in split(replace(l.version, "v", ""), ".") |toInteger(ver)] as lversion, l where size(ldversion) = 2 and size(lversion) >= 2 and (lversion[0] > ldversion[0] or(lversion[0] = ldversion[0] and lversion[1] >= ldversion[1] )) set ld.matched = true create (ld)-[r:MATCHES]->(l) returncount(distinct r)
+            - added 16 relationships
+        - for 3 parts match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and ld.matched is null
+with [ ver in split(ld.parsed_version,".") | toInteger(ver) ] as ldversion, ld, [ ver in split(replace(l.version, "v", ""), ".") |toInteger(ver)] as lversion, l 
+where size(ldversion) = 3 and size(lversion) >= 3
+and (lversion[0] > ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] > ldversion[1] )
+or (lversion[0] = ldversion[0] and lversion[1] = ldversion[1] and lversion[2] >= ldversion[2]) )
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+            - added 805 rels
+        - for ones where version matches match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and ld.matched is null andl.version = ld.parsed_version set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+            - added 119 rels
+        - same, also changing v match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and ld.matched is null andreplace(l.version, "v", "") = ld.parsed_version set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+            - added 10 rels
+    - NB: from now on use this in the start:  match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with split(ld.parsed_version,"-")[0] as parsed_version, replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+    - again for 3 parts: match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name with split(ld.parsed_version,"-")[0] as parsed_version, replace(split(l.version, "-")[0], "v", "") as version, l, ld  where not ld.parsed_version contains"..." and ld.parsed_version contains "-"  and ld.matched is null with [ ver in split(parsed_version,".") | toInteger(ver) ] asldversion, ld, [ ver in split(version, ".") |toInteger(ver)] as lversion, l 
+where size(ldversion) = 3 and size(lversion) >= 3
+and (lversion[0] > ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] > ldversion[1] )
+or (lversion[0] = ldversion[0] and lversion[1] = ldversion[1] and lversion[2] >= ldversion[2]) )
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+    - --> 32 rels added
+    - for stuff without ..., add as not matched and add matched name match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and ld.name = l.name and not ld.parsed_version contains "..." and ld.matched is null set ld.matched = false, ld.name_matches = true create (ld)-[r:NAME_MATCHES]->(l) return l.version, ld.parsed_version
+        - created 522 relationships
+    - everything else with ... --> fix this (total 2 values)
+        - first:  match (ld:LibraryDefinition) where ld.requirement = ">=" and ld.parsed_version contains "..." and ld.matched is null andld.parsed_version = "1.4.0...1.4.0" set ld.parsed_version = "1.4.0", ld.requirement = "=="
+        - create rel:  match (ld:LibraryDefinition) where ld.requirement = "==" and ld.matched is null match (l:Library) where l.name =ld.name and l.version = ld.parsed_version set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+            - created 1
+        - second match (ld:LibraryDefinition) where ld.requirement = ">=" and ld.parsed_version contains "..." and ld.matched is null setld.requirement = "...", ld.parsed_version = "3.2.0", ld.upper_bound = "4.1.0"
+            - set 3 properties
+        - others no name matches:  match (ld:LibraryDefinition) where ld.requirement = ">=" and ld.matched is null set ld.matched = false, ld.name_matches = false
+        - --> set 426 properties
+        - check: match (ld:LibraryDefinition) where ld.requirement = ">=" return ld.matched, ld.name_matches, count(*)
+        - all handled
+
+- handle ... match (ld:LibraryDefinition), (l:Library) where ld.requirement = "..." and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+split(ld.upper_bound,"-")[0] as upper_bound,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(upper_bound,".") | toInteger(ver) ] as upper,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l 
+where
+size(ldversion) = 3 and
+not (
+ldversion[0] > lversion[0] or upper[0] < lversion[0] or
+(ldversion[0] = lversion[0] and ldversion[1] > lversion[1]) or (upper[0] = lversion[0] and upper[1] < lversion[1]) or
+(ldversion[0] = lversion[0] and ldversion[1] = lversion[1] and ldversion[2] > lversion[2]) or
+(upper[0] = lversion[0] and upper[1] = lversion[1] and upper[2] < lversion[2])
+)
+return ld.name, ld.version, ldversion, upper, lversion
+- set 
+match (ld:LibraryDefinition), (l:Library) where ld.requirement = "..." and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+split(ld.upper_bound,"-")[0] as upper_bound,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(upper_bound,".") | toInteger(ver) ] as upper,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l 
+where
+size(ldversion) = 3 and
+not (
+ldversion[0] > lversion[0] or upper[0] < lversion[0] or
+(ldversion[0] = lversion[0] and ldversion[1] > lversion[1]) or (upper[0] = lversion[0] and upper[1] < lversion[1]) or
+(ldversion[0] = lversion[0] and ldversion[1] = lversion[1] and ldversion[2] > lversion[2]) or
+(upper[0] = lversion[0] and upper[1] = lversion[1] and upper[2] < lversion[2])
+)
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+    - --> set 7 relationships
+- checked if some had name but no version match (ld:LibraryDefinition), (l:Library) where ld.requirement = "..." and ld.name = l.name and ld.matched is null
+return ld.name, ld.parsed_version, l.version
+    - none
+- no name match:
+match (ld:LibraryDefinition) where ld.requirement = "..." and ld.matched is null
+return ld.name, ld.parsed_version
+- also none
+
+
+handle ..<
+- set match (ld:LibraryDefinition), (l:Library) where ld.requirement = "..<" and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+split(ld.upper_bound,"-")[0] as upper_bound,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(upper_bound,".") | toInteger(ver) ] as upper,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l 
+where
+size(ldversion) = 3 and
+not (
+ldversion[0] > lversion[0] or upper[0] < lversion[0] or
+(ldversion[0] = lversion[0] and ldversion[1] > lversion[1]) or (upper[0] = lversion[0] and upper[1] < lversion[1]) or
+(ldversion[0] = lversion[0] and ldversion[1] = lversion[1] and ldversion[2] > lversion[2]) or
+(upper[0] = lversion[0] and upper[1] = lversion[1] and upper[2] <= lversion[2])
+)
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+- --> set 422 relationships
+- check
+    - others with versions between betas, we cannot handle that, set relationhisp to exact version match (ld:LibraryDefinition), (l:Library) where ld.requirement = "..<" and ld.name = l.name and ld.matched is null andld.parsed_version = l.parsed_version
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+    - 25 relationships created
+- others not matching: match (ld:LibraryDefinition) where ld.requirement = "..<" and ld.matched is null
+set ld.matched = false, ld.name_matches = false
+- 
+
+Handle ~> like ..<, but need to calculate upper bound
+- with 3 parts:  match (ld:LibraryDefinition), (l:Library) where ld.requirement = "~>" and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+with
+ldversion, ld, lversion, l, version,
+[ldversion[0], ldversion[1] + 1, 0] as upper
+where
+size(ldversion) = 3 and
+not (
+ldversion[0] > lversion[0] or upper[0] < lversion[0] or
+(ldversion[0] = lversion[0] and ldversion[1] > lversion[1]) or (upper[0] = lversion[0] and upper[1] < lversion[1]) or
+(ldversion[0] = lversion[0] and ldversion[1] = lversion[1] and ldversion[2] > lversion[2]) or
+(upper[0] = lversion[0] and upper[1] = lversion[1] and upper[2] <= lversion[2])
+)
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+- with 2 parts match (ld:LibraryDefinition), (l:Library) where ld.requirement = "~>" and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where
+size(ldversion) = 2
+with ldversion, ld, lversion, l, version,
+[ldversion[0] + 1, 0] as upper
+where
+not (
+ldversion[0] > lversion[0] or upper[0] < lversion[0] or
+(ldversion[0] = lversion[0] and ldversion[1] > lversion[1]) or (upper[0] = lversion[0] and upper[1] <= lversion[1])
+)
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+- created 30080 relationships
+- with 1 part match (ld:LibraryDefinition), (l:Library) where ld.requirement = "~>" and ld.name = l.name and ld.matched is null
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where
+size(ldversion) = 1
+with ldversion, ld, lversion, l, version,
+[ldversion[0] + 1] as upper
+where
+not (
+ldversion[0] > lversion[0] or upper[0] <= lversion[0]
+)
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+- added 181 relationships
+- for others name matches: match (ld:LibraryDefinition), (l:Library) where ld.requirement = "~>" and ld.name = l.name and ld.matched is null
+set ld.matched = false, ld.name_matches = true create (ld)-[r:NAME_MATCHES]->(l) return l.version, ld.parsed_version
+- for others:  match (ld:LibraryDefinition) where ld.requirement = "~>" and ld.matched is null set ld.matched = false, ld.name_matches = false
+- checking all
+- for others requirement null match (ld:LibraryDefinition) where ld.matched is null set ld.matched = false, ld.name_matches = false
+- --> set 48 properties
+
+Checking if parsing was correct: 
+- all that match correctly: match (ld:LibraryDefinition)<-[:DEPENDS_ON]-(a:App)-[r:DEPENDS_ON]->(l:Library) where ld.name = l.name and(ld) -[:MATCHES]->(l) return count(DISTINCT r)
+    - 102866
+- all that match incorrectly match (ld:LibraryDefinition)<-[:DEPENDS_ON]-(a:App)-[r:DEPENDS_ON]->(l:Library) where ld.name = l.name andnot (ld) -[:MATCHES]->(l) return count(DISTINCT r)
+    - 10227
+- around 10% do not match --> check why
+- for which requirement?  match (ld:LibraryDefinition)<-[:DEPENDS_ON]-(a:App)-[r:DEPENDS_ON]->(l:Library) where ld.name = l.name andnot (ld) -[:MATCHES]->(l) return ld.requirement, count(*)
+    - == 6090
+        - in some instances versions do not match (maybe the resolution file was not updated), in other instances the requirement is about branch/revision
+        - when we take out potential branches then 181/894 different combination remain
+        - --> either commit on one side or mismatched versions (but versions correctly parsed)
+    - >= 2066
+        - sometimes version mismatch (probably as above)
+        - problem with matching starting with v --> need to fix
+        - problem with matching if value is exactly the same, but for example 5.0.0-beta3 (then not matched) --> need to fix
+            - just run after removing anything after the dash
+        - fix:  match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and l.name = ld.name and not (ld)-[:MATCHES]->(l)
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where size(ldversion) = 3 and size(lversion) >= 3
+and (lversion[0] > ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] > ldversion[1] )
+or (lversion[0] = ldversion[0] and lversion[1] = ldversion[1] and lversion[2] >= ldversion[2]) )
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - --> created 10421 relationships
+        - 275/362 different combinations remained
+        - run same for parts = 2 match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and l.name = ld.name and not (ld)-[:MATCHES]->(l)
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where size(ldversion) = 2 and size(lversion) >= 3
+and (lversion[0] > ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] >= ldversion[1] ))
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - --> added 186 relationships
+        - 270/367 remained
+        - run again for lversion length 2 match (ld:LibraryDefinition), (l:Library) where ld.requirement = ">=" and l.name = ld.name and not (ld)-[:MATCHES]->(l)
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where size(ldversion) > 2 and size(lversion) = 2
+and (lversion[0] > ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] > ldversion[1] ))
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - 147 relationships created
+        - 265/367 remained
+        - --> these seem to just not match (maybe resolution files not updated?)
+    - ~> 4652
+        - versions just do not seem to match --> why?
+    - null 43 --> cannot match
+    - ..< 3
+        - not matching
+    - < 3
+        - need to fix, not taking into account values where ld.parsed_version only has 2 parts
+        - fix:  match (ld:LibraryDefinition), (l:Library) where ld.requirement = "<" and l.name = ld.name and not (ld)-[:MATCHES]->(l)
+with
+split(ld.parsed_version,"-")[0] as parsed_version,
+replace(split(l.version, "-")[0], "v", "") as version, l, ld 
+with
+[ ver in split(parsed_version,".") | toInteger(ver) ] as ldversion, ld,
+[ ver in split(version, ".") |toInteger(ver)] as lversion, l, version
+where size(ldversion) = 2 and size(lversion) >= 2
+and (lversion[0] < ldversion[0]
+or (lversion[0] = ldversion[0] and lversion[1] < ldversion[1] ))
+set ld.matched = true create (ld)-[r:MATCHES]->(l) return count(distinct r)
+        - --> created 27 relationships
+        - fixed
+- how many in total remained? 
+    - 9510/10227 remained
+    - 9.2% are matched incorrectly 
+- of the ones that are not potential branches: 
+    - 5904/93502 = 6% matched incorrectly
+
+
+----
+Next: add relationships between app and library where resolution file missing
+
+- Check if there are some library dependencies if that type of library is missing:  match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library) where m.name contains r.type match (a)-[s:DEPENDS_ON]->(l:Library) where r.type = s.type return count(*)
+    - none
+- check if any double matches:  match (ld:LibraryDefinition)-[r:MATCHES]->(l:Library) with ld, l, count( r) as countr where countr > 1 return ld.version,l.version, countr order by countr desc
+    - none
+- sometimes library has both 1.0.0 and v1.0.0 versions, merged these match (l:Library) with l order by l.version with l.name as name, replace(l.version, "v", "") as version, collect(l) as nodes,collect(l.version) as versions where size(nodes) > 1 call apoc.refactor.mergeNodes(nodes,{properties:"discard",mergeRels:true})
+yield node return node.name, node.version
+    - 1264 records merged
+- checked again, now no duplicates:  match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library) where m.name contains r.type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where a.timestamp < la.timestamp with a, ld, max(la.timestamp) asmax_time match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where la.timestamp = max_time with ld,  count(distinct l)as somecount return ld.version, somecount order by somecount desc
+- problem: sometimes 2 options for an app node (name lowercase, some with mixed), fixed
+- problem: sometimes an app corresponds to multiple library nodes, for example with
+    - different versions 5.0 and 5.0.1
+    - different names: bitstadium/hockeysdk-ios and hockeysdk match (l:Library)<-[:IS]-(a:App) with a, collect(l) as nodes, l.version as version, collect(id(l)) as ids, collect(l.name) asnames where size(names) > 1 return a.name, a.tag, version, ids, names
+        - 70 such records
+        - merge: match (l:Library)<-[:IS]-(a:App) with a, collect(l) as nodes, l.version as version, collect(id(l)) as ids, collect(l.name) asnames where size(names) > 1 unwind nodes as node with a, version, node order by size(node.name) desc with a, version,collect(node) as nodes, collect(node.name) as names call apoc.refactor.mergeNodes(nodes,{properties:"discard",mergeRels:true}) yield node return node.name, node.version
+        - merged 70 records
+    - check again: match (l:Library)<-[:IS]-(a:App) with a, collect(l) as nodes, collect( l.version) as versions, collect(id(l)) as ids,collect(l.name) as names where size(versions) > 1 return a.name, a.tag, versions, ids, names
+    - fix others:  match (l:Library)<-[:IS]-(a:App) with a, collect(l) as nodes, collect(distinct l.version) as versions, collect(id(l)) as ids,collect(distinct l.name) as names where size(versions) > 1 call apoc.refactor.mergeNodes(nodes,{properties:"discard",mergeRels:true}) yield node return node.name, node.version
+    - 8 merged
+- checking if relationships now with unique result:  match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library) where m.name contains r.type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where a.timestamp > la.timestamp with a, ld, max(la.timestamp) asmax_time match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where la.timestamp = max_time with a, ld, l, la order byl.version desc  with  a, ld,  count(distinct l) as somecount, collect(l.version)  as versions, collect(la.timestamp) as times return a.timestamp, ld.name, ld.version,versions, versions[0] as chosen, times, somecount order by somecount desc
+    - one outlier with two versions with the same timestamp, checked, really has same timestamp, will take version value that is larger
+- 
+
+Create relationships:  match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library) where m.name contains r.type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where a.timestamp > la.timestamp with a, ld, max(la.timestamp) asmax_time match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where la.timestamp = max_time with a, ld, l, la order byl.version desc  with  a, ld,  count(distinct l) as somecount, collect(l.version)  as versions, collect(la.timestamp) as times create (a)-[r:DEPENDS_ON {from_manifest:true, requirement:ld.version} ]->(l) return count(distinct r)
+-- created 36978 relationships
+
+checking: match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library)
+where m.name contains r.type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where a.timestamp > la.timestamp 
+with a, ld, max(la.timestamp) as max_time, r.type as type 
+match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App)
+where la.timestamp = max_time with a, ld, l, la, type order by l.version desc
+with  a, ld,  count(distinct l) as somecount, collect(l.version)  as versions, collect(la.timestamp) as times, type 
+match (a)-[r:DEPENDS_ON]->(l) where r.type = type 
+return count(distinct r)
+
+- something went wrong, l was not given anymore match (a) where labels(a) = [] detach delete a
+- removed 37005 empty nodes
+
+- trying again. match (ld:LibraryDefinition)<-[r:DEPENDS_ON]-(a:App)-[:MISSING]->(m:Library) where m.name contains r.type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where a.timestamp > la.timestamp with a, ld, max(la.timestamp) asmax_time, r.type as type match (ld)-[:MATCHES]->(l:Library)<-[:IS]-(la:App) where la.timestamp = max_time with a,ld, l, la, type order by l.version desc  create (a)-[r:DEPENDS_ON {from_manifest:true, requirement:ld.version, type:type}]->(l) return count(distinct r)
+    - created 36985 relationships
+- checking match (a:App)-[r:DEPENDS_ON]->(l:Library) return r.from_manifest, count(*)
+    - 36985 from manifest, 275469 others 
+    - total 12% from manifest
+
+------
+Problems: 
+- we have multiple node of the same library version match (l:Library) where l.name = "alisoftware/dip" and l.version = "4.1.0" return l.name, l.version, id(l)
+- library versions sometimes start with v --> create new property where they do not match (l:Library) where l.version starts with "v" and l.version contains "." set l.parsed_version = replace(l.version, "v","")
+- --> set 60320 properties
+- also set the rest of versions to regural version match (l:Library) where not l.version starts with "v"  set l.parsed_version = l.version
+- --> set 517794 properties
+- some ld.parsed_version contain ” match (l:LibraryDefinition) where l.parsed_version contains "“" set l.parsed_version = replace(l.parsed_version, "“", "")
+    - and match (l:LibraryDefinition) where l.parsed_version contains "”" set l.parsed_version = replace(l.parsed_version, "”", "")
+    - --> both set 3 properties
+- handled version...version wrong as >= --> fix!
+- some app versions have 2 different versions, one with lowercase and one with mixed letters, merge:  match (a:App) with toLower(a.name) as name, a order by a.name with name, collect(a) as nodes, a.tag as tag,collect(a.name) as names call apoc.refactor.mergeNodes(nodes,{properties:"discard", mergeRels:true})
+yield node return node.name, node.version
+
+Find all such:  match (l:Library) with l.name as name, l.version as version, collect(DISTINCT l) as libs with name, version, size(libs) aslibsize return name, version, libsize order by libsize desc
+Merge: match (l:Library) with l.name as name, l.version as version, collect(DISTINCT l) as nodes
+where size(nodes) > 1
+call apoc.refactor.mergeNodes(nodes,{properties:"discard", mergeRels:true})
+yield node return node.name, node.version
+--> merged 51696 nodes
+
+
+
